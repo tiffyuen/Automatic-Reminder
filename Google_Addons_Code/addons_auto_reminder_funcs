@@ -237,7 +237,6 @@ function generateEmail(email, subject, name, eventName, eventDate, startTime, en
   if (officerEmail != undefined) {
     msg = msg.replace("(officer's email)", officerEmail);
   }
-  Logger.log(msg);
   // Send email
   GmailApp.sendEmail(email, subject, msg);
   Logger.log('Sent email to ' + email + ' for ' + eventName);
