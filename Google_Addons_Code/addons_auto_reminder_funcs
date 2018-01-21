@@ -22,6 +22,9 @@ function doGet() {
 /* Get user input from side bar and invoke reminder trigger */
 function getUserInput(form) {
   
+  SpreadsheetApp.getActiveSpreadsheet().toast("Running");
+  Utilities.sleep(5000);
+  
   // Get user input from HTML side bar
   var eventDate = (form.dateTxt).replace('/','-');
   var hr = form.startTimeTxt;
@@ -88,6 +91,9 @@ function getUserInput(form) {
   .inTimezone(SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone())
   .create();
 
+  SpreadsheetApp.getActiveSpreadsheet().toast("Email Scheduled");
+  Utilities.sleep(3000);
+  
   PropertiesService.getScriptProperties().setProperty('eventName', form.eventName);
   Utilities.sleep(1000);
   PropertiesService.getScriptProperties().setProperty('eventDate', eventDate);
