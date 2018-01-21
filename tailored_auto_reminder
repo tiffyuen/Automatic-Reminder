@@ -1,0 +1,331 @@
+/* 
+ * Start function whenever spreadsheet is being opened
+ */
+function onOpen() {
+  var spreadSheet;
+  var data;
+  var eventDate;
+  var eventDateName;
+  var eventTime;
+  var hr;
+  var min;
+  var eventDateTime;
+  var time = new Date(); 
+  var i;
+  var j;
+  var x;
+  var y;
+  var finalTime = 0; // initialize finalTime to 0
+  var finalPage;
+
+  // Check each spreadsheet
+  for (x = 0; x < SpreadsheetApp.getActive().getSheets().length; x++) {
+    spreadSheet = SpreadsheetApp.getActive().getSheets()[x];
+    data = spreadSheet.getDataRange().getValues();
+    
+    // Get event date and event name from cell A1
+    eventDateName = spreadSheet.getRange("A1").getDisplayValue();
+    eventDate = eventDateName.split(" ")[0];
+
+    // Find the first cell with value 'Name' and get the first time slot
+    if (eventDateName.substring(eventDateName.length-15,eventDateName.length) != "(Reminder Sent)"){
+      nestedLoop:     for (i = spreadSheet.getActiveCell().getRow()-1; i < data.length - 1; i++) {
+        for (j = 0; j < data[i].length - 1; j++) {
+          if (data[i][j] == "Name") {
+            eventTime = data[i][j-1];
+            break nestedLoop;
+          }
+        }
+      }
+     
+      eventTime = eventTime.split('-')[0]; // Get the start time of the timeslot
+      
+      // Formate date and time to fit in Google Date() format
+      if (Number(eventDate.split('/')[0]) < 10) { // If month < 10
+        if ((eventDate.split('/')[0]).substring(0,1) != '0') { // Check if month has leading 0
+          eventDate = '0' + eventDate;
+        }
+      }
+      
+      if (Number(eventDate.split('/')[1]) < 10) { // If day < 10
+        if ((eventDate.split('/')[1]).substring(0,1) != '0') { // Check if date has leading 0
+          eventDate = eventDate.split('/')[0] + '-' + '0' + eventDate.split('/')[1];
+        }
+      }
+      
+      eventDate = eventDate.replace('/','-');
+      
+      // Change time into 24-hour format and trim out white space
+      eventTime = eventTime.replace(/\s/g, "");
+      
+      hr=eventTime.replace(eventTime.substring(eventTime.length-2,eventTime.length),'');
+      min = "00";
+     
+      if (hr.substring(1,2) == ':') { // if hr is only 1 digit, add leading 0
+        hr = '0' + hr;
+        min = hr.substring(hr.length-2,hr.length);
+        if (min.substring(0,1) == ':') { // if min is only 1 digit, add leading 0
+          min = '0' + min.substring(1,2);
+        }
+        hr = hr.substring(0,2);
+      } else if(hr.substring(2,3) == ':') { // if hr >= 10
+        min = hr.substring(hr.length-2,hr.length);
+        if (min.substring(0,1) == ':') { // if min is only 1 digit, add leading 0
+          min = '0' + min.substring(1,2);
+        }
+        hr = hr.substring(0,2);
+      } else {
+        if (Number(hr) < 10) {
+          hr = '0' + hr;
+        }
+      }
+      
+      if (eventTime.substring(eventTime.length-2,eventTime.length).toLowerCase() == "pm"){
+          hr = Number(hr) + 12;
+      }
+
+      // Check to see if event occur during this year or next year
+      if (Number(time.getMonth()) > Number(eventDate.split('-')[0])){
+        eventDateTime = new Date(getPrevDate((Number(time.getYear()) + 1) + '-' + eventDate + 'T' + hr + ":" + min + ':00-08:00'));
+      }
+      else {
+        eventDateTime = new Date(getPrevDate(time.getYear() + '-' + eventDate + 'T' + hr + ":" + min + ':00-08:00'));
+      }
+      
+      // Get the event closed to current time
+      if ((finalTime == 0)|| (eventDateTime.getTime() < finalTime.getTime())) {
+        if (eventDateName.substring(eventDateName.length-15,eventDateName.length) != "(Reminder Sent)"){
+          finalTime = eventDateTime;
+          finalPage = x;
+        }
+      }
+      
+      if (eventDateTime.getTime() < time.getTime()) {
+        finalTime = time;
+        break;
+      }
+    } // != reminder sent
+  } // for
+
+  // Code modified from https://ctrlq.org/code/19716-schedule-gmail-emails
+  PropertiesService.getScriptProperties().setProperty('sentPage', finalPage);
+  PropertiesService.getScriptProperties().setProperty('title', eventDateName);
+  Utilities.sleep(1000);
+  if (Number(time.getMonth()) > Number(eventDate.split('-')[0])){
+    PropertiesService.getScriptProperties().setProperty('sentTime', getPrevDate((Number(time.getYear()) + 1) + '-' + eventDate + 'T' + hr + ":" + min + ':00-08:00'));
+  }
+  else {
+    PropertiesService.getScriptProperties().setProperty('sentTime', getPrevDate(time.getYear() + '-' + eventDate + 'T' + hr + ":" + min + ':00-08:00'));
+  }
+  
+  // Delete all existing triggers expect onOpen trigger
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if ((triggers[i].getHandlerFunction() === "sendMail") && (triggers[i].getEventType() != ScriptApp.EventType.ON_OPEN)) {
+      Logger.log('Delete trigger');
+      Utilities.sleep(1000);
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+  
+  // Set up time to send email
+  ScriptApp.newTrigger("sendMail")
+  .timeBased()
+  .at(finalTime)
+  .inTimezone(SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone())
+  .create();
+
+  Logger.log('email scheduled at ' + finalTime + ' for ' + eventDateName);
+  return;
+}
+
+/*
+ * Send email when it reaches time stored in trigger
+ */
+function sendMail() {
+  Logger.log('sendMail');
+  var spreadSheet = SpreadsheetApp.getActive().getSheets()[Number(PropertiesService.getScriptProperties().getProperty('sentPage'))];
+  var data = spreadSheet.getDataRange().getValues();
+  var time = new Date(); // Get current time
+  var schedule = new Date(convertToDate(PropertiesService.getScriptProperties().getProperty('sentTime'))); // Format date time
+  var eventDateName;
+  var eventDate;
+  var eventName;
+  var subject;
+  var eventLoc;
+  var eventTime;
+  var officerName;
+  var officerCell;
+  var officerEmail;
+  var nameTemp;
+  var emailTemp;
+  var totName;
+  var name;
+  var email;
+  var i;
+  var j;
+  var k;
+
+  // Get event date and event name from cell A1
+  eventDateName = spreadSheet.getRange("A1").getDisplayValue();
+  eventDate = eventDateName.split(" ")[0];
+  eventName = eventDateName.replace(eventDate + " ", "");
+  
+  // Create subject line for email
+  subject = 'Reminder for ' + eventName;
+  
+  // Get event location from cell A3
+  eventLoc = spreadSheet.getRange("A3").getDisplayValue();
+  eventLoc = eventLoc.split('Where: ')[1];
+  
+  Logger.log(eventDate + ', ' + eventName + ', ' + eventLoc);
+  // Find all the cells with value 'Name'
+  for (i = spreadSheet.getActiveCell().getRow()-1; i < data.length - 1; i++) {
+    for (j = 0; j < data[i].length - 1; j++) {
+      if (data[i][j] == "Name") {
+        eventTime = data[i][j-1];
+        Logger.log(eventTime);
+        // Obtain officer name, phone, and email if there is any
+        if ((data[i+1][j-1] == "Officer") || (data[i+1][j-1] == "Officer:")){
+          officerName = data[i+1][j];
+          officerCell = data[i+1][j+1];
+          officerEmail = data[i+1][j+2];
+        }
+        else {
+          officerName = '';
+        }
+
+        // Get members' name, phone, and email as long as somebody has signed up for that timeslot
+        k = i+1;
+        while (k != data.length && data[k][j] != '') {
+          nameTemp = data[k][j];
+          emailTemp = data[k][j+2];
+          if (nameTemp.split(',')[1] != undefined) {
+            totName = parseInt(nameTemp.split(',').length,10);
+            for (y = 0; y < totName; y++) {
+              name = nameTemp.split(',')[y];
+              email = emailTemp.split(',')[y];
+              
+              generateEmail (email, subject, name, eventName, eventDate, eventTime, eventLoc, officerName, officerCell, officerEmail);
+            }
+          }
+          else {
+            generateEmail (emailTemp, subject, nameTemp, eventName, eventDate, eventTime, eventLoc, officerName, officerCell, officerEmail);
+          }
+          k++;
+        }
+      }
+    }
+    // Add '(Reminder Sent)' to cell A1 of the event
+    SpreadsheetApp.getActive().getSheets()[Number(PropertiesService.getScriptProperties().getProperty('sentPage'))].getRange('A1').setValue(PropertiesService.getScriptProperties().getProperty('title') + ' (Reminder Sent)');
+  }
+  // Send log reports to creator
+  GmailApp.sendEmail('tyuen@ucdavis.edu', 'Logger Report for ' + eventName, Logger.getLog());
+}
+
+function generateEmail(email, subject, name, eventName, eventDate, eventTime, eventLoc, officerName, officerCell, officerEmail) {
+  var messageStart;
+  var messagePart1;
+  var messagePart2;
+  var messageEnd;
+  var body;
+  
+  messageStart = 'Hi ' + name + ',';
+  
+  // Generate message with date, time and location information
+  messagePart1 = 'This is a reminder that you have signed up for the ' + eventName + ' on ' + eventDate + ' at ' + eventTime + ' at ' + eventLoc + '.';
+  
+  // Generate different messages if there is more than 1 officer during that timeslot
+  if (officerName != '') {
+    if (officerName.split(',').length > 1) {
+      messagePart2 = 'Your officer at that time is ' + officerName.split(',')[0] + ' and ' + officerName.split(',')[1] + '. Their contact is ' + officerCell +  ', and ' + officerEmail + '.';
+    }
+    else {
+      messagePart2 = 'Your officer at that time is ' + officerName + '. His/Her contact is ' + officerCell + ', ' + officerEmail  + '.';
+    }
+  }
+  else {
+    messagePart2 = '';
+  }
+  
+  // Signature at the end of email
+  messageEnd = 'From your Red Cross Officers <3';
+  
+  body = messageStart + '\n\n' + messagePart1 + '\n' + messagePart2 + '\n\n' + messageEnd;
+  
+  // Send email
+  GmailApp.sendEmail(email, subject, body);
+  Logger.log('Sent email to ' + email + ' for ' + eventName);
+}
+
+
+/* 
+ * Set date and time format to fit in the format of Google Date()
+ * Get date and time 24 hours before the event
+ * Modified from http://delete.me.uk/2005/03/iso8601.html
+ */
+function getPrevDate(string) {
+  //2017-10-30T13:00:00-08:00
+  try{
+    var aDate = new Date();
+    var regexp = "([0-9]{4})(-([0-9]{2})(-([0-9]{2})" +
+        "(T([0-9]{2}):([0-9]{2})(:([0-9]{2})(\\.([0-9]+))?)?" +
+        "(Z|(([-+])([0-9]{2}):([0-9]{2})))?)?)?)?";
+    var d = string.match(new RegExp(regexp));
+
+    var offset = 0;
+    var date = new Date(d[1], 0, 1);
+
+    if (d[3]) { date.setMonth(d[3] - 1); }
+    if (d[5]) { date.setDate(d[5]-1); } // Get 1 day before
+    if (d[7]) { date.setHours(d[7]); }
+    if (d[8]) { date.setMinutes(d[8]); }
+    if (d[10]) { date.setSeconds(d[10]); }
+    if (d[12]) { date.setMilliseconds(Number("0." + d[12]) * 1000); }
+    if (d[14]) {
+      offset = (Number(d[16]) * 60) + Number(d[17]);
+      offset *= ((d[15] == '-') ? 1 : -1);
+    }
+
+    offset -= date.getTimezoneOffset();
+    time = (Number(date) + (offset * 60 * 1000));
+    return aDate.setTime(Number(time));
+  } catch(e){
+    return;
+  }
+}
+
+/*
+ * Set date and time format to fit in the format of Google Date()
+ * Copied from http://delete.me.uk/2005/03/iso8601.html
+ */
+function convertToDate(string) {
+  //2017-10-30T13:00:00-08:00
+  try{
+    var aDate = new Date();
+    var regexp = "([0-9]{4})(-([0-9]{2})(-([0-9]{2})" +
+        "(T([0-9]{2}):([0-9]{2})(:([0-9]{2})(\\.([0-9]+))?)?" +
+        "(Z|(([-+])([0-9]{2}):([0-9]{2})))?)?)?)?";
+    var d = string.match(new RegExp(regexp));
+
+    var offset = 0;
+    var date = new Date(d[1], 0, 1);
+
+    if (d[3]) { date.setMonth(d[3] - 1); }
+    if (d[5]) { date.setDate(d[5]); }
+    if (d[7]) { date.setHours(d[7]); }
+    if (d[8]) { date.setMinutes(d[8]); }
+    if (d[10]) { date.setSeconds(d[10]); }
+    if (d[12]) { date.setMilliseconds(Number("0." + d[12]) * 1000); }
+    if (d[14]) {
+      offset = (Number(d[16]) * 60) + Number(d[17]);
+      offset *= ((d[15] == '-') ? 1 : -1);
+    }
+
+    offset -= date.getTimezoneOffset();
+    time = (Number(date) + (offset * 60 * 1000));
+    return aDate.setTime(Number(time));
+  } catch(e){
+    return;
+  }
+}

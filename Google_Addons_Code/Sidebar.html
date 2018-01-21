@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <link rel="stylesheet" href="https://ssl.gstatic.com/docs/script/css/add-ons1.css">
+    <!-- The CSS package above applies Google styling to buttons and other elements. -->
+  </head>
+  <body>
+    <div id="sideBarDiv" style="padding-left:20px;">
+      <form>
+        <p><b>Date</b></p>
+        <input type="text" placeholder="MM/DD" name="dateTxt" style="padding-left:5px;">
+        <br>
+        
+        <p><b>Time</b></p>
+        <p>Start Time&nbsp;<input type="text" placeholder="hh:mm" name="startTimeTxt" style="padding-left:5px;"></p>
+        <p>End Time&nbsp;&nbsp;<input type="text" placeholder="hh:mm" name="endTimeTxt" style="padding-left:5px;"></p>
+        <br>
+        
+        <p><b>Event Name</b></p>
+        <input type="text" name="eventName" style="padding-left:5px;">
+        <br>
+        
+        <p><b>Location</b></p>
+        <input type="text" name="locTxt" style="padding-left:5px;">
+        <br>
+        
+        <p><b>Include</b></p>
+        <p>Please have the column titles on the spreadsheet be <i>Name</i> and <i>Email</i></p>
+        <p>Name Column&nbsp; <input type="checkbox" checked="checked" name="nameCk"></p>
+        <p>Email Column&nbsp;&nbsp;<input type="checkbox" checked="checked" name="emailCol"></p>
+        <br>
+        
+        <p><b>Officer Info (if any)</b></p>
+        <p>Officer Name&nbsp;&nbsp; <input type="text" name="offName" style="padding-left:5px;"></p>
+        <p>Officer Phone&nbsp;      <input type="text" name="offPhone" style="padding-left:5px;"></p>
+        <p>Officer Email&nbsp;&nbsp;&nbsp;<input type="text" name="offEmail" style="padding-left:5px;"></p>
+        <br>
+        
+        <p><b>Sender Email</b></p>
+        <p><i>Make sure you have access to the email account</i></p>
+        <input type="text" name="sendEmail" style="padding-left:5px;">
+        <p>Get log report when emails are sent?&nbsp; <input type="checkbox" checked="checked" name="logRep"></p>
+        <br>
+        
+        <p><b>Message Format</b></p>
+        <p><i>Information in brackets () will be added automatically into the emails</i></p>
+        <p><i>***Please do not alter words in brackets ()***</i></p>
+        <textarea rows="15" cols="30" name="msg">
+Hi (participant's name),
+
+This is a reminder that you have signed up for the (event name) on (event date) at (event location) from (start time) to (end time).
+Please contact (officer's name) by (officer's cell) or (officer's email) if you have any questions.
+
+Regards,
+
+Name
+Position
+Co. Name
+        </textarea>
+      </form>
+    </div>
+    <div style="display: flex; align-items: center; justify-content: center;">
+      <input type="button" value="Set Reminders" onclick="google.script.run.getUserInput(document.forms[0])">
+    </div>
+    
+  </body>
+</html>
